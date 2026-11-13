@@ -17,10 +17,11 @@ class Controller:
         self.view.show_frame(RepPsswdsPage)
         
     def get_db_button(self):
-        self.model.file_paths.extend(filedialog.askopenfilenames(filetypes=[("Pliki tekstowe", "*.txt")]))
-        if self.model.file_paths:
-            for path in self.model.file_paths:
-                self.model.load_psswds_db(path)
+        selected_paths = filedialog.askopenfilenames(filetypes=[("Pliki tekstowe", "*.txt")])
+        for path in selected_paths:
+            self.model.load_psswds_db(path)
+            self.model.file_paths.append(path)
+        if selected_paths:
             self.model.debug_longest_password()
             
     def clr_db_button(self):

@@ -229,7 +229,7 @@ class Model:
             cnt_flag = False
             for character in psswd:
                 if chartype == 'letter':
-                    if character in letters:
+                    if character.lower() in letters:
                         cnt_flag = True
                 elif chartype == 'digit':
                     if character in digits:
@@ -293,6 +293,8 @@ class Model:
         for psswd in self.psswds:
             if len(psswd) == length:
                 psswds_of_length += 1
+        if psswds_of_length == 0:
+            return {key: 0 for key in stats}
         for key in stats.keys():
             stats_percentage[key] = stats[key]/psswds_of_length*100
         return stats_percentage

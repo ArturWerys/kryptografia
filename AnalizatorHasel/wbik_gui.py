@@ -3,6 +3,7 @@ from tkinter import ttk
 from tkinter import filedialog
 from tkinter.scrolledtext import ScrolledText
 from tkinter import font
+from pathlib import Path
 
 
 import matplotlib.pyplot as plt
@@ -52,24 +53,32 @@ class StatsPage(ttk.Frame):
         self.style.configure('StatsPage.TLabel', font=('Segoe UI', 16), anchor=tk.CENTER, justify='center') 
         self.style.configure('StatsPage.TButton', font=('Segoe UI', 16), anchor=tk.CENTER, justify='center')
         self.style.configure('StatsPage_loaded.TLabel', font=('Segoe UI', 16))
+        self.style.configure('StatsCaption.TLabel', font=('Segoe UI', 13), anchor='w', justify='left')
+        self.style.configure('StatsValue.TLabel', font=('Segoe UI', 18, 'bold'), anchor='w', justify='left')
         
         self.subframe = ttk.Frame(self)
         self.subframe_info = ttk.Frame(self)
         self.subframe.place(relx=0.3, rely=0.35, relwidth=0.5, relheight=0.6, anchor='center')
         self.subframe_info.place(relx=0.75, rely=0.5, relwidth=0.25, anchor='center')
 
-        self.loaded_label = ttk.Label(self, text="Brak załadowanych baz haseł", wraplength=0.8*screen_width, style='StatsPage_loaded.TLabel')
-        self.psswds_cnt = ttk.Label(self.subframe_info, text="", style='StatsPage.TLabel')
-        self.psswds_cnt_num = ttk.Label(self.subframe_info, text="", style='StatsPage.TLabel', wraplength=0.25*screen_width)
-        self.psswds_cnt_alpha = ttk.Label(self.subframe_info, text="", style='StatsPage.TLabel', wraplength=0.25*screen_width)
-        self.psswds_cnt_spec = ttk.Label(self.subframe_info, text="", style='StatsPage.TLabel', wraplength=0.25*screen_width)
-        self.psswds_cnt_alpha_digit = ttk.Label(self.subframe_info, text="", style='StatsPage.TLabel', wraplength=0.25*screen_width)
-        
-        self.psswds_cnt.pack(anchor='w')
-        self.psswds_cnt_num.pack(anchor='w')
-        self.psswds_cnt_alpha.pack(anchor='w')
-        self.psswds_cnt_spec.pack(anchor='w')
-        self.psswds_cnt_alpha_digit.pack(anchor='w')
+        self.loaded_label = ttk.Label(self, text="Brak załadowanych baz haseł", wraplength=0.8*screen_width, justify='left', style='StatsPage_loaded.TLabel')
+        self.stat_labels = []
+        for description in ("Łączna liczba haseł", "Cyfry", "Litery",
+                            "Znaki specjalne", "Hasła o strukturze: najpierw litery, potem cyfry"):
+            if description == "Cyfry":
+                self.only_chars_heading = ttk.Label(
+                    self.subframe_info, text="", style='StatsCaption.TLabel',
+                    font=('Segoe UI', 13, 'bold'))
+                self.only_chars_heading.pack(anchor='w', fill='x', pady=(4, 8))
+            elif description.startswith("Hasła o strukturze:"):
+                self.structure_separator = ttk.Separator(self.subframe_info, orient='horizontal')
+                self.structure_separator.pack(fill='x', pady=(0, 12))
+            caption = ttk.Label(self.subframe_info, text="", style='StatsCaption.TLabel')
+            caption.pack(anchor='w', fill='x')
+            value = ttk.Label(self.subframe_info, text="", style='StatsValue.TLabel')
+            value.pack(anchor='w', fill='x', pady=(2, 12))
+            self.stat_labels.append((description, caption, value))
+        self.subframe_info.bind('<Configure>', self.resize_stats_labels)
 
         self.subframe.grid_propagate(False)
 
@@ -104,6 +113,12 @@ class StatsPage(ttk.Frame):
 
         self.loaded_label.place(relx=0.1, rely=0.95, anchor='sw', relwidth=0.8)
                         
+    def resize_stats_labels(self, event):
+        self.only_chars_heading.configure(wraplength=max(1, event.width - 8))
+        for description, caption, value in self.stat_labels:
+            caption.configure(wraplength=max(1, event.width - 8))
+            value.configure(wraplength=max(1, event.width - 8))
+
     def on_resize(self, event):
         # Automatyczna aktualizacja rozmiaru ramki w zależności od rozmiaru okna
         new_width = self.winfo_width() - 40  # Margines 20 pikseli z każdej strony
@@ -112,14 +127,6 @@ class StatsPage(ttk.Frame):
         
     def get_db_callback(self):
         self.controller.get_db_button()
-        max_display = 10  # Maksymalna liczba ścieżek do wyświetlenia
-        if len(self.model.file_paths) > max_display:
-            display_paths = self.model.file_paths[:max_display]
-            display_text = ", ".join(display_paths) + " (...)"
-        else:
-            display_text = ", ".join(self.model.file_paths)
-        
-        self.loaded_label.config(text="Załadowane bazy: " + display_text, foreground='green')
         self.reload()
 
     def clean_db_callback(self):
@@ -129,22 +136,30 @@ class StatsPage(ttk.Frame):
 
     def reload(self):
         psswds_nb = self.model.all_psswds_nb(self.model.psswds)
+        if self.model.file_paths:
+            count_text = f"{psswds_nb:,}".replace(',', ' ')
+            display_text = f"Wczytane bazy: {len(self.model.file_paths)}  |  Łącznie haseł: {count_text}\n"
+            display_text += " • ".join(Path(path).name for path in self.model.file_paths)
+            self.loaded_label.config(text=display_text, foreground='green')
+        else:
+            self.loaded_label.config(text="Brak załadowanych baz haseł", foreground='black')
         numeric_nb = self.model.all_numeric_nb(self.model.psswds)
         alpha_nb = self.model.all_alpha_nb(self.model.psswds)
         spcs_nb = self.model.all_spcs_nb(self.model.psswds)
         alpha_plus_num_nb = self.model.alpha_plus_num_nb(self.model.psswds)
-        if psswds_nb == 0:
-            self.psswds_cnt.config(text="", style='StatsPage.TLabel')
-            self.psswds_cnt_num.config(text="", style='StatsPage.TLabel')
-            self.psswds_cnt_alpha.config(text="", style='StatsPage.TLabel')
-            self.psswds_cnt_spec.config(text="", style='StatsPage.TLabel')
-            self.psswds_cnt_alpha_digit.config(text="", style='StatsPage.TLabel')
-        else:
-            self.psswds_cnt.config(text=f"Liczba haseł: {psswds_nb}")
-            self.psswds_cnt_num.config(text=f"Liczba haseł tylko numerycznych: {numeric_nb} ({round(numeric_nb/psswds_nb*100, 1)}%)")
-            self.psswds_cnt_alpha.config(text=f"Liczba haseł tylko literowych: {alpha_nb} ({round(alpha_nb/psswds_nb*100, 1)}%)")
-            self.psswds_cnt_spec.config(text=f"Liczba haseł zawierających jedynie znaki specjalne: {spcs_nb} ({round(spcs_nb/psswds_nb*100, 1)}%)")
-            self.psswds_cnt_alpha_digit.config(text=f"Liczba haseł o strukturze: najpierw litery, potem cyfry: {alpha_plus_num_nb} ({round(alpha_plus_num_nb/psswds_nb*100, 1)}%)")
+        counts = (psswds_nb, numeric_nb, alpha_nb, spcs_nb, alpha_plus_num_nb)
+        self.only_chars_heading.config(text="Hasła zawierające tylko:" if psswds_nb else "")
+        for index, ((description, caption, value), count) in enumerate(zip(self.stat_labels, counts)):
+            if psswds_nb == 0:
+                caption.config(text="")
+                value.config(text="")
+            else:
+                caption.config(text=description)
+                count_text = f"{count:,}".replace(',', ' ')
+                if index > 0:
+                    percentage = f"{count / psswds_nb * 100:.1f}".replace('.', ',')
+                    count_text += f"  ({percentage}%)"
+                value.config(text=count_text)
             
 # Długości haseł        
 class PsswdLenPage(ttk.Frame):
@@ -241,23 +256,40 @@ class RepPsswdsPage(ttk.Frame):
         #self.n = 2
         self.info_label = ttk.Label(self)
         self.info_label.place(relx=0.5, rely=0.05, anchor ='center')
+        search_frame = ttk.Frame(self)
+        search_frame.place(relx=0.5, rely=0.13, anchor='center', relwidth=0.9)
+        ttk.Label(search_frame, text="Dokładne hasło (wielkość liter ma znaczenie):").pack(anchor='w')
+        self.search_var = tk.StringVar()
+        search_entry = ttk.Entry(search_frame, textvariable=self.search_var, font=('Segoe UI', 14))
+        search_entry.pack(side=tk.LEFT, fill='x', expand=True, pady=4)
+        search_entry.bind('<Return>', lambda event: self.reload())
+        ttk.Button(search_frame, text="Szukaj", command=self.reload).pack(side=tk.LEFT, padx=8)
+        ttk.Button(search_frame, text="Pokaż wszystkie", command=self.clear_search).pack(side=tk.LEFT)
         self.text_area = ScrolledText(self, wrap=tk.WORD, width=2*30+1, font = ("Courier", 16))
         print(self.screen_width, self.screen_height)
         print(int(0.05*self.screen_width))
-        self.text_area.place(relheight=0.8, relx=0.5, rely=0.5, anchor='center')
+        self.text_area.place(relheight=0.62, relx=0.5, rely=0.52, anchor='center')
         self.text_area.configure(state='disabled')
         ttk.Button(self, text="Wróć", command=lambda: self.master.show_frame(StatsPage), style='RepPsswdsPage.TButton').place(relx=0.5, rely=0.95, anchor='center')
-        self.sort_button = ttk.Button(self, text="Sortuj alfabetycznie", command=self.reload, style='RepPsswdsPage.TButton')
+        self.sort_button = ttk.Button(self, text="Sortuj alfabetycznie", command=self.toggle_sort, style='RepPsswdsPage.TButton')
         self.sort_button.place(relx=0.05, rely=0.95, anchor='w')
         self.sort_info = ttk.Label(self, style='DigitPosPage.TLabel')
         self.sort_info.place(relx=0.05, rely=0.85, anchor='w')
         
+    def clear_search(self):
+        self.search_var.set('')
+        self.reload()
+
+    def toggle_sort(self):
+        self.sorted_alphabetically = not self.sorted_alphabetically
+        self.reload()
+
     def reload(self):
-        self.info_label.config(text = f"Hasła powtórzone minimum 2 razy:", style='RepPsswdsPage.TLabel')
+        query = self.search_var.get()
+        self.info_label.config(text="Wynik wyszukiwania" if query else "Hasła powtórzone minimum 2 razy:", style='RepPsswdsPage.TLabel')
         self.text_area.configure(state='normal')
         self.text_area.delete('1.0', tk.END)
         
-        self.sorted_alphabetically = not self.sorted_alphabetically
         if self.sorted_alphabetically:
             self.dict_to_print = dict(sorted(self.model.rep.items()))
             self.sort_button.config(text="Sortuj wg liczby powtórzeń", style='RepPsswdsPage.TButton')
@@ -267,7 +299,16 @@ class RepPsswdsPage(ttk.Frame):
             self.sort_button.config(text="Sortuj alfabetycznie", style='RepPsswdsPage.TButton')
             self.sort_info.config(text="Dane posortowano\nwg liczby powtórzeń")
 
-        self.text_area.insert(tk.INSERT, self.model.dict_to_str(self.dict_to_print, width=30))
+        if query:
+            count = self.model.psswds.count(query)
+            result = f"Hasło: {query}\n\nLiczba wystąpień: {count}\n"
+            if count == 0:
+                result += "\nNie znaleziono tego hasła we wczytanych bazach."
+            elif count == 1:
+                result += "\nHasło występuje tylko raz — nie jest powtórzone."
+        else:
+            result = self.model.dict_to_str(self.dict_to_print, width=30) if self.dict_to_print else "Brak powtarzających się haseł."
+        self.text_area.insert(tk.INSERT, result)
         self.text_area.configure(state='disabled')
 
 # Pozycje cyfr w hasłach
